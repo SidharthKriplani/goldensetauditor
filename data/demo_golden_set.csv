@@ -1,0 +1,11 @@
+id,category,question,expected_answer
+Q001,policy,How many PTO days can employees carry over?,Employees may carry over up to five unused PTO days into the next calendar year.
+Q002,policy,How many PTO days can employees carry over?,No PTO days can be carried over after year end.
+Q003,benefits,Can I expense a standing desk for my home office?,Standing desks may be expensed with manager approval under the equipment policy.
+Q004,benefits,Can I reimburse a standing desk for my remote office?,A standing desk for a remote office can be reimbursed if the manager approves it.
+Q005,disciplinary,What happens after a first disciplinary offense?,The manager issues a written warning and documents the incident in the HR system.
+Q006,remote,What about this?,It depends.
+Q007,expense,What is the meal reimbursement limit and can alcohol be reimbursed?,The meal reimbursement limit is fifty dollars and alcohol is not reimbursable.
+Q008,expense,The VPN reimbursement limit is 30 dollars,The VPN reimbursement limit is 30 dollars.
+Q009,security,What is the process for reporting a lost laptop?,"Report the lost laptop to IT and Security immediately, then file an incident ticket."
+Q010,security,When should employees report a lost laptop?,Immediately after discovering the loss.
