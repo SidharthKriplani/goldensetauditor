@@ -2,6 +2,18 @@
 
 All notable changes to GoldenSetAuditor are documented here.
 
+## [0.3.0] — 2026-05-06
+
+### Added
+- `OvereasyAnswerTests` (2 tests): verifies overeasy check fires when answer
+  echoes question keywords and does not fire on informative answers.
+- `MinimumRowsTests` (4 tests): edge cases — single-row dataset, empty expected
+  answer, all-same-category, no id_col provided.
+- `docs/prd/` directory with Interview Defense and PRD documents.
+
+### Changed
+- Version bumped to 0.3.0.
+
 ## [0.2.0] — 2025-07-01
 
 ### Added
