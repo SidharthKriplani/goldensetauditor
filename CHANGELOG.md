@@ -2,6 +2,35 @@
 
 All notable changes to GoldenSetAuditor are documented here.
 
+## [0.5.0] — 2026-05-06
+
+### Added
+- `answer_diversity` check: computes three complementary lexical diversity statistics
+  over the expected-answer corpus — normalized Shannon entropy, type-token ratio (TTR),
+  and length coefficient of variation (CV). Warns when entropy < 0.55 or TTR < 0.30,
+  since a homogeneous golden set inflates embedding-based benchmark scores.
+- `_answer_diversity(answers)` pure function; `diversity_entropy_warn` and
+  `diversity_ttr_warn` thresholds added to `GoldenSetAuditConfig`.
+- `AnswerDiversityTests` (5 tests): homogeneous warns, diverse passes, evidence keys,
+  entropy bounds [0,1], single-token corpus → entropy = 0.
+
+### Changed
+- Version bumped to 0.5.0.
+
+## [0.4.0] — 2026-05-06
+
+### Added
+- `semantic_similarity` check: TF-IDF cosine similarity (pure Python, no sklearn)
+  between predicted and expected answers when `predicted_col` is configured.
+  Flags rows with similarity < 0.10 (possible hallucination) or > 0.98 (verbatim copy).
+- `_build_idf`, `_cosine_sim` helper functions.
+- `predicted_col`, `similarity_low_threshold`, `similarity_high_threshold` added to
+  `GoldenSetAuditConfig`.
+- `SemanticSimilarityTests` (5 tests).
+
+### Changed
+- Version bumped to 0.4.0.
+
 ## [0.3.0] — 2026-05-06
 
 ### Added

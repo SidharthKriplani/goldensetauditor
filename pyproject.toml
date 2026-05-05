@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "goldensetauditor"
-version = "0.3.0"
+version = "0.5.0"
 description = "Audit golden evaluation datasets for LLM/RAG application quality risks."
 readme = "README.md"
 requires-python = ">=3.9"
