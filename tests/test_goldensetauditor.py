@@ -196,6 +196,70 @@ class MinimumRowsTests(unittest.TestCase):
         self.assertIsNotNone(report.status)
 
 
+class AnswerDiversityTests(unittest.TestCase):
+    """Tests for Shannon entropy + TTR + length CV diversity check."""
+
+    def test_homogeneous_answers_warn(self):
+        """Answers with nearly identical phrasing should trigger a diversity warning."""
+        df = pd.DataFrame([
+            {"id": str(i), "question": f"Question {i}?",
+             "expected_answer": "The policy is yes the policy is yes the policy is yes."}
+            for i in range(10)
+        ])
+        report = audit_golden_set(df, GoldenSetAuditConfig(
+            id_col="id",
+            diversity_entropy_warn=0.90,  # high threshold to force the warning
+        ))
+        self.assertTrue(any(f.check_name == "answer_diversity" and f.status == "WARN" for f in report.findings))
+
+    def test_diverse_answers_pass(self):
+        """Answers with varied vocabulary should produce a PASS for diversity."""
+        df = pd.DataFrame([
+            {"id": "1", "question": "What is the PTO policy?",
+             "expected_answer": "Employees receive twenty days of paid time off annually."},
+            {"id": "2", "question": "How do I submit expenses?",
+             "expected_answer": "Submit receipts via the finance portal within thirty days of purchase."},
+            {"id": "3", "question": "Who approves remote work?",
+             "expected_answer": "Direct managers approve remote arrangements after reviewing productivity metrics."},
+            {"id": "4", "question": "What is the sabbatical policy?",
+             "expected_answer": "Sabbaticals are available after seven years of continuous service."},
+            {"id": "5", "question": "How is performance measured?",
+             "expected_answer": "Performance reviews occur biannually using objectives and key results frameworks."},
+        ])
+        report = audit_golden_set(df, GoldenSetAuditConfig(id_col="id"))
+        diversity_finding = next(f for f in report.findings if f.check_name == "answer_diversity")
+        self.assertEqual(diversity_finding.status, "PASS")
+
+    def test_diversity_evidence_has_required_keys(self):
+        """Diversity finding always includes entropy, TTR, and length_cv in evidence."""
+        df = pd.DataFrame([
+            {"id": "1", "question": "What is policy A?", "expected_answer": "Policy A is described in the handbook."},
+            {"id": "2", "question": "What is policy B?", "expected_answer": "Policy B outlines the leave entitlements."},
+        ])
+        report = audit_golden_set(df, GoldenSetAuditConfig(id_col="id"))
+        diversity_finding = next(f for f in report.findings if f.check_name == "answer_diversity")
+        for key in ("normalized_entropy", "type_token_ratio", "length_cv"):
+            self.assertIn(key, diversity_finding.evidence)
+
+    def test_entropy_bounded_zero_to_one(self):
+        """Normalized entropy must always be in [0, 1]."""
+        from goldensetauditor.core import _answer_diversity
+        for answers in [
+            ["yes"] * 20,
+            ["yes no maybe always never sometimes"] * 5,
+            ["a b c d e f g h i j k l m n o p"],
+        ]:
+            result = _answer_diversity(answers)
+            self.assertGreaterEqual(result["normalized_entropy"], 0.0)
+            self.assertLessEqual(result["normalized_entropy"], 1.0 + 1e-9)
+
+    def test_single_token_answer_corpus_entropy_is_zero(self):
+        """All answers containing only one unique token → entropy = 0."""
+        from goldensetauditor.core import _answer_diversity
+        result = _answer_diversity(["yes", "yes", "yes", "yes"])
+        self.assertAlmostEqual(result["normalized_entropy"], 0.0, places=6)
+
+
 class SemanticSimilarityTests(unittest.TestCase):
     """Tests for TF-IDF cosine similarity between predicted and expected answers."""
 

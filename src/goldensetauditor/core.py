@@ -35,6 +35,8 @@ class GoldenSetAuditConfig:
     max_pairwise_checks: int = 25000
     similarity_low_threshold: float = 0.10      # below → possible hallucination / wrong mapping
     similarity_high_threshold: float = 0.98     # above → suspicious verbatim copy
+    diversity_entropy_warn: float = 0.55        # normalized Shannon entropy below this → homogeneous
+    diversity_ttr_warn: float = 0.30            # type-token ratio below this → repetitive vocab
 
 @dataclass
 class GoldenSetFinding:
@@ -185,6 +187,62 @@ def _cosine_sim(text_a: str, text_b: str, idf: Dict[str, float]) -> float:
     return min(dot / (norm_a * norm_b), 1.0)
 
 
+def _answer_diversity(answers: List[str]) -> Dict[str, float]:
+    """Compute three complementary diversity statistics over a list of answer strings.
+
+    Returns:
+        normalized_entropy  — Shannon entropy of the token-frequency distribution,
+                              normalized by log2(vocab_size) so it sits in [0, 1].
+                              Low value → answers share the same small vocabulary.
+        type_token_ratio    — unique_tokens / total_tokens (TTR).
+                              Low value → high repetition across answers.
+        length_cv           — coefficient of variation of answer character lengths
+                              (std / mean). Near-zero → all answers are the same length,
+                              which can inflate benchmark scores for length-sensitive metrics.
+    """
+    all_tokens: List[str] = []
+    lengths: List[int] = []
+    for ans in answers:
+        tokens = re.findall(r"[a-zA-Z0-9]+", ans.lower())
+        all_tokens.extend(tokens)
+        lengths.append(len(ans))
+
+    total = len(all_tokens)
+    if total == 0:
+        return {"normalized_entropy": 0.0, "type_token_ratio": 0.0, "length_cv": 0.0}
+
+    # Shannon entropy
+    freq: Dict[str, int] = {}
+    for t in all_tokens:
+        freq[t] = freq.get(t, 0) + 1
+    vocab_size = len(freq)
+    entropy = -sum((c / total) * math.log2(c / total) for c in freq.values())
+    max_entropy = math.log2(vocab_size) if vocab_size > 1 else 1.0
+    normalized_entropy = entropy / max_entropy
+
+    # Type-token ratio
+    ttr = vocab_size / total
+
+    # Length coefficient of variation
+    if len(lengths) < 2:
+        length_cv = 0.0
+    else:
+        mean_len = sum(lengths) / len(lengths)
+        if mean_len == 0:
+            length_cv = 0.0
+        else:
+            variance = sum((l - mean_len) ** 2 for l in lengths) / (len(lengths) - 1)
+            length_cv = math.sqrt(variance) / mean_len
+
+    return {
+        "normalized_entropy": round(normalized_entropy, 4),
+        "type_token_ratio": round(ttr, 4),
+        "length_cv": round(length_cv, 4),
+        "vocab_size": vocab_size,
+        "total_tokens": total,
+    }
+
+
 def _overall_status(findings: List[GoldenSetFinding]) -> Status:
     if any(f.status == "FAIL" for f in findings):
         return "FAIL"
@@ -306,6 +364,45 @@ def audit_golden_set(df: pd.DataFrame, config: GoldenSetAuditConfig = GoldenSetA
             "category_coverage", "INSUFFICIENT_INPUT", "low", [],
             "No category column provided.",
             "Provide category_col to audit coverage gaps across evaluation categories.",
+        ))
+
+    # Answer diversity: Shannon entropy + type-token ratio + length CV
+    answers = df[config.expected_col].fillna("").astype(str).tolist()
+    diversity = _answer_diversity(answers)
+    low_entropy = diversity["normalized_entropy"] < config.diversity_entropy_warn
+    low_ttr = diversity["type_token_ratio"] < config.diversity_ttr_warn
+    if low_entropy or low_ttr:
+        issues = []
+        if low_entropy:
+            issues.append(
+                f"normalized entropy {diversity['normalized_entropy']:.3f} < {config.diversity_entropy_warn} "
+                "(answers share a small, repetitive vocabulary)"
+            )
+        if low_ttr:
+            issues.append(
+                f"type-token ratio {diversity['type_token_ratio']:.3f} < {config.diversity_ttr_warn} "
+                "(high token repetition across answers)"
+            )
+        findings.append(GoldenSetFinding(
+            "answer_diversity",
+            "WARN",
+            "medium",
+            [],
+            "Expected-answer corpus shows low lexical diversity: " + "; ".join(issues) + ".",
+            "Expand the vocabulary and phrasing of expected answers. "
+            "A homogeneous golden set inflates benchmark scores for length-sensitive and embedding-based metrics.",
+            diversity,
+        ))
+    else:
+        findings.append(GoldenSetFinding(
+            "answer_diversity",
+            "PASS",
+            "none",
+            [],
+            f"Answer corpus entropy {diversity['normalized_entropy']:.3f}, TTR {diversity['type_token_ratio']:.3f}, "
+            f"length CV {diversity['length_cv']:.3f} — diversity looks healthy.",
+            "Continue monitoring diversity as the golden set grows.",
+            diversity,
         ))
 
     # Semantic similarity: predicted vs. expected answers (requires predicted_col)
