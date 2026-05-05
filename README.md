@@ -129,3 +129,13 @@ Built **GoldenSetAuditor**, an evaluation dataset quality auditor for LLM/RAG ap
 ## License
 
 MIT
+
+---
+
+## How This Connects
+
+GoldenSetAuditor is the **evaluation dataset quality gate** for LLM and RAG systems in this portfolio:
+
+- **DevPulse:** The DevPulse evaluation set (question/answer pairs about API migrations) is audited by GoldenSetAuditor before any Recall@5 or Macro F1 metrics are reported. Without this gate, duplicate questions, ambiguous queries, or context-incomplete answers would inflate or deflate the reported metrics arbitrarily. DevPulse's Macro F1 = 0.966 and Recall@5 = 0.97 are grounded in an audited evaluation set.
+- **DocIngestQA:** GoldenSetAuditor and DocIngestQA are complementary: DocIngestQA audits the source documents before indexing, GoldenSetAuditor audits the evaluation set used to measure retrieval quality. Both must pass for the evaluation pipeline to be trustworthy.
+- **Any RAG system:** Before reporting retrieval benchmarks, run GoldenSetAuditor to confirm the evaluation set is free of contamination, coverage gaps, and answer ambiguity.
