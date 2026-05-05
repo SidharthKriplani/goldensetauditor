@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Literal, Optional, Sequence, Tuple
 import itertools
 import json
+import math
 import re
 
 import numpy as np
@@ -26,11 +27,14 @@ class GoldenSetAuditConfig:
     expected_col: str = "expected_answer"
     category_col: Optional[str] = None
     id_col: Optional[str] = None
+    predicted_col: Optional[str] = None         # model predictions for semantic similarity check
     min_expected_words: int = 4
     near_duplicate_threshold: float = 0.82
     overeasy_overlap_threshold: float = 0.72
     min_category_count: int = 3
     max_pairwise_checks: int = 25000
+    similarity_low_threshold: float = 0.10      # below → possible hallucination / wrong mapping
+    similarity_high_threshold: float = 0.98     # above → suspicious verbatim copy
 
 @dataclass
 class GoldenSetFinding:
@@ -149,6 +153,36 @@ def _jaccard(a: object, b: object) -> float:
     if not ta or not tb:
         return 0.0
     return len(ta & tb) / len(ta | tb)
+
+
+def _build_idf(corpus: List[str]) -> Dict[str, float]:
+    """Compute IDF weights for all terms across a corpus of strings."""
+    n = len(corpus)
+    doc_freq: Dict[str, int] = {}
+    for doc in corpus:
+        for term in set(re.findall(r"[a-zA-Z0-9]+", doc.lower())):
+            doc_freq[term] = doc_freq.get(term, 0) + 1
+    return {t: math.log((n + 1) / (df + 1)) + 1.0 for t, df in doc_freq.items()}
+
+
+def _cosine_sim(text_a: str, text_b: str, idf: Dict[str, float]) -> float:
+    """TF-IDF weighted cosine similarity between two text strings (no external deps)."""
+    def tf_vec(text: str) -> Dict[str, int]:
+        counts: Dict[str, int] = {}
+        for t in re.findall(r"[a-zA-Z0-9]+", text.lower()):
+            counts[t] = counts.get(t, 0) + 1
+        return counts
+
+    va, vb = tf_vec(str(text_a)), tf_vec(str(text_b))
+    all_terms = list(set(va) | set(vb))
+    vec_a = [va.get(t, 0) * idf.get(t, 1.0) for t in all_terms]
+    vec_b = [vb.get(t, 0) * idf.get(t, 1.0) for t in all_terms]
+    dot = sum(a * b for a, b in zip(vec_a, vec_b))
+    norm_a = math.sqrt(sum(a * a for a in vec_a))
+    norm_b = math.sqrt(sum(b * b for b in vec_b))
+    if norm_a < 1e-10 or norm_b < 1e-10:
+        return 0.0
+    return min(dot / (norm_a * norm_b), 1.0)
 
 
 def _overall_status(findings: List[GoldenSetFinding]) -> Status:
@@ -273,6 +307,60 @@ def audit_golden_set(df: pd.DataFrame, config: GoldenSetAuditConfig = GoldenSetA
             "No category column provided.",
             "Provide category_col to audit coverage gaps across evaluation categories.",
         ))
+
+    # Semantic similarity: predicted vs. expected answers (requires predicted_col)
+    if config.predicted_col:
+        if config.predicted_col not in df.columns:
+            findings.append(GoldenSetFinding(
+                "semantic_similarity", "INSUFFICIENT_INPUT", "low", [],
+                f"Configured predicted_col '{config.predicted_col}' is missing from the DataFrame.",
+                "Provide model predictions in the predicted_col before running semantic similarity check.",
+            ))
+        else:
+            corpus = (
+                df[config.expected_col].fillna("").astype(str).tolist()
+                + df[config.predicted_col].fillna("").astype(str).tolist()
+            )
+            idf = _build_idf(corpus)
+            sim_scores: List[float] = []
+            for idx, row in df.iterrows():
+                expected = str(row[config.expected_col]) if pd.notna(row.get(config.expected_col)) else ""
+                predicted = str(row[config.predicted_col]) if pd.notna(row.get(config.predicted_col)) else ""
+                sim = _cosine_sim(expected, predicted, idf)
+                sim_scores.append(sim)
+                if sim < config.similarity_low_threshold:
+                    findings.append(GoldenSetFinding(
+                        "semantic_similarity", "WARN", "high", [_row_id(df, idx, config)],
+                        f"Predicted answer has very low semantic similarity to expected ({sim:.3f}). "
+                        "Possible hallucination or wrong-question mapping.",
+                        "Review this row manually. The model output may be ungrounded or unrelated.",
+                        {"cosine_similarity": round(sim, 4), "threshold": config.similarity_low_threshold},
+                    ))
+                elif sim > config.similarity_high_threshold:
+                    findings.append(GoldenSetFinding(
+                        "semantic_similarity", "WARN", "low", [_row_id(df, idx, config)],
+                        f"Predicted answer is near-identical to expected ({sim:.3f}). "
+                        "Possible verbatim copy or evaluation data contamination.",
+                        "Verify the model is not memorizing or copying the expected answer from its context.",
+                        {"cosine_similarity": round(sim, 4), "threshold": config.similarity_high_threshold},
+                    ))
+            if sim_scores:
+                avg_sim = sum(sim_scores) / len(sim_scores)
+                low_count = sum(1 for s in sim_scores if s < config.similarity_low_threshold)
+                findings.append(GoldenSetFinding(
+                    "semantic_similarity_summary",
+                    "WARN" if low_count > 0 else "PASS",
+                    "medium" if low_count > 0 else "none",
+                    [],
+                    f"Average predicted/expected cosine similarity: {avg_sim:.3f}. "
+                    f"Low-similarity rows: {low_count}/{len(sim_scores)}.",
+                    "Review all low-similarity rows before using this benchmark to validate model quality.",
+                    {
+                        "avg_cosine_similarity": round(avg_sim, 4),
+                        "low_similarity_count": low_count,
+                        "total_rows": len(sim_scores),
+                    },
+                ))
 
     if not findings:
         findings.append(GoldenSetFinding(

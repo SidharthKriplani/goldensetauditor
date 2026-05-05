@@ -196,5 +196,82 @@ class MinimumRowsTests(unittest.TestCase):
         self.assertIsNotNone(report.status)
 
 
+class SemanticSimilarityTests(unittest.TestCase):
+    """Tests for TF-IDF cosine similarity between predicted and expected answers."""
+
+    def _make_df_with_predictions(self, low_sim: bool = False, copy: bool = False):
+        base = [
+            {"id": "1",
+             "question": "What is the expense submission deadline?",
+             "expected_answer": "Expense reports must be submitted within thirty days of the purchase date."},
+            {"id": "2",
+             "question": "Who approves remote work requests?",
+             "expected_answer": "Direct managers approve remote work requests after reviewing productivity."},
+        ]
+        if copy:
+            for row in base:
+                row["predicted"] = row["expected_answer"]
+        elif low_sim:
+            for row in base:
+                row["predicted"] = "unrelated output about weather forecasting"
+        else:
+            for row in base:
+                # Similar but not identical
+                row["predicted"] = row["expected_answer"].replace("must be", "should be")
+        return pd.DataFrame(base)
+
+    def test_similar_predictions_produce_no_low_sim_flags(self):
+        df = self._make_df_with_predictions(low_sim=False)
+        report = audit_golden_set(df, GoldenSetAuditConfig(id_col="id", predicted_col="predicted"))
+        low_sim_flags = [
+            f for f in report.findings
+            if f.check_name == "semantic_similarity" and f.status == "WARN"
+            and f.evidence.get("cosine_similarity", 1.0) < 0.10
+        ]
+        self.assertEqual(len(low_sim_flags), 0)
+
+    def test_unrelated_predictions_flag_low_similarity(self):
+        df = self._make_df_with_predictions(low_sim=True)
+        report = audit_golden_set(df, GoldenSetAuditConfig(
+            id_col="id",
+            predicted_col="predicted",
+            similarity_low_threshold=0.10,
+        ))
+        self.assertTrue(any(f.check_name == "semantic_similarity" and f.status == "WARN" for f in report.findings))
+
+    def test_summary_row_reports_avg_similarity(self):
+        df = self._make_df_with_predictions(low_sim=False)
+        report = audit_golden_set(df, GoldenSetAuditConfig(id_col="id", predicted_col="predicted"))
+        summary_finding = next(
+            (f for f in report.findings if f.check_name == "semantic_similarity_summary"), None
+        )
+        self.assertIsNotNone(summary_finding)
+        self.assertIn("avg_cosine_similarity", summary_finding.evidence)
+
+    def test_missing_predicted_col_gives_insufficient_input(self):
+        df = pd.DataFrame([
+            {"id": "1", "question": "Q?", "expected_answer": "A."},
+        ])
+        report = audit_golden_set(df, GoldenSetAuditConfig(id_col="id", predicted_col="missing_col"))
+        self.assertTrue(any(
+            f.check_name == "semantic_similarity" and f.status == "INSUFFICIENT_INPUT"
+            for f in report.findings
+        ))
+
+    def test_verbatim_copy_flagged_as_high_similarity(self):
+        df = self._make_df_with_predictions(copy=True)
+        report = audit_golden_set(df, GoldenSetAuditConfig(
+            id_col="id",
+            predicted_col="predicted",
+            similarity_high_threshold=0.95,
+        ))
+        high_sim_flags = [
+            f for f in report.findings
+            if f.check_name == "semantic_similarity"
+            and f.evidence.get("cosine_similarity", 0.0) > 0.95
+        ]
+        self.assertGreater(len(high_sim_flags), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
