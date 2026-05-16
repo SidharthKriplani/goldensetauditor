@@ -11,7 +11,7 @@
 
 <p>
   <img alt="Checks" src="https://img.shields.io/badge/checks-7-0ea5e9?style=flat-square">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-13-22c55e?style=flat-square">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-29-22c55e?style=flat-square">
   <img alt="Status" src="https://img.shields.io/badge/PRD-PASS-22c55e?style=flat-square">
 </p>
 
