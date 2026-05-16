@@ -138,6 +138,10 @@ Built **GoldenSetAuditor**, an evaluation dataset quality auditor for LLM/RAG ap
 - Pretraining contamination flag (n-gram overlap against known public corpora)
 - Multi-turn / context-dependent conversation auditing
 
+## Interview Defense
+
+[📄 GoldenSetAuditor_Interview_Defense_v2.pdf](docs/defense/GoldenSetAuditor_Interview_Defense_v2.pdf) — covers duplicate detection heuristics, answer ambiguity scoring, context completeness checks, n-gram overlap contamination detection, coverage gap analysis, and evaluation set quality standards for RAG and LLM systems.
+
 ## License
 
 MIT
