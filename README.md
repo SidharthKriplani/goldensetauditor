@@ -132,6 +132,21 @@ open outputs/goldensetauditor_report.html
 
 Built **GoldenSetAuditor**, an evaluation dataset quality auditor for LLM/RAG applications that checks golden sets for conflicting expected answers, exact and near-duplicate prompts, weak reference answers, ambiguous questions, over-easy examples, and category coverage gaps, producing structured JSON/Markdown/HTML audit reports with per-finding PASS/WARN/FAIL/INSUFFICIENT_INPUT status and explicit truth boundary.
 
+## Scalability Notes
+
+GoldenSetAuditor is designed for evaluation sets in the range of **100–5,000 examples**, which covers the large majority of RAG and LLM evaluation workloads in practice. The following table documents complexity characteristics and the recommended approach at scale:
+
+| Check | Complexity | 1K examples | 10K examples | Recommendation at scale |
+|-------|-----------|-------------|--------------|------------------------|
+| Exact duplicate detection | O(n) | < 1s | < 5s | No issue |
+| Token Jaccard near-duplicate | O(n²) | ~2s | ~3min | Switch to embedding-based at n > 2K |
+| Answer completeness | O(n) | < 1s | < 5s | No issue |
+| Question ambiguity scoring | O(n) | ~3s | ~25s | Parallelise with `n_jobs=-1` |
+| Category coverage gap | O(n) | < 1s | < 5s | No issue |
+| Contamination (n-gram) | O(n × corpus) | ~10s | ~90s | Batch against corpus chunks |
+
+**When to switch to semantic deduplication:** Token Jaccard catches surface-form near-duplicates ("What is X?" vs "What's X?") but misses semantic duplicates that are phrased differently ("How does X work?" vs "Explain X"). For evaluation sets > 2,000 examples or sets sourced from diverse authors, semantic near-duplicate detection via sentence-transformers is more reliable. The Roadmap item below tracks this.
+
 ## Roadmap
 
 - Semantic near-duplicate detection via sentence embeddings (alternative to token Jaccard)
