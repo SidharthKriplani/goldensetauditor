@@ -1,6 +1,6 @@
 # GoldenSetAuditor
 
-**Evaluation dataset quality auditor for LLM / RAG applications.**
+> Evaluation dataset quality auditor for LLM and RAG applications. Audits golden sets for duplicates, ambiguity, label imbalance, and contamination before benchmark scores are trusted.
 
 <p>
   <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/SidharthKriplani/goldensetauditor/ci.yml?branch=main&label=CI&style=for-the-badge&logo=githubactions&logoColor=white">
@@ -29,7 +29,7 @@ GoldenSetAuditor audits golden evaluation datasets for LLM and RAG applications 
 
 ---
 
-## About
+## The Problem
 
 Nobody questions the golden set. It's treated as ground truth — the fixed reference that tells you whether your model improved. But golden sets are assembled by humans, often under deadline pressure, from domain knowledge that isn't always consistent or independently reviewed. The same question appears twice with different expected answers. A near-trivial question makes up a third of a category. A reference answer is one word. An ambiguous pronoun in a prompt means no single correct answer exists.
 
@@ -41,7 +41,7 @@ GoldenSetAuditor breaks that circularity. Feed it the DataFrame backing your eva
 
 The truth boundary is explicit on every report: this tool audits dataset quality. It does not evaluate model answers.
 
-## Architecture
+## How It Works
 
 ```mermaid
 flowchart TD
