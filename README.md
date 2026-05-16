@@ -17,6 +17,18 @@
 
 GoldenSetAuditor audits golden evaluation datasets for LLM and RAG applications before benchmark scores are trusted. It does not score model outputs — it audits the dataset being scored against.
 
+## Architecture
+
+![Architecture](docs/assets/architecture.svg)
+
+---
+
+## Sample Output
+
+![Sample Output](docs/assets/audit_report_sample.svg)
+
+---
+
 ## About
 
 Nobody questions the golden set. It's treated as ground truth — the fixed reference that tells you whether your model improved. But golden sets are assembled by humans, often under deadline pressure, from domain knowledge that isn't always consistent or independently reviewed. The same question appears twice with different expected answers. A near-trivial question makes up a third of a category. A reference answer is one word. An ambiguous pronoun in a prompt means no single correct answer exists.
@@ -139,3 +151,17 @@ GoldenSetAuditor is the **evaluation dataset quality gate** for LLM and RAG syst
 - **DevPulse:** The DevPulse evaluation set (question/answer pairs about API migrations) is audited by GoldenSetAuditor before any Recall@5 or Macro F1 metrics are reported. Without this gate, duplicate questions, ambiguous queries, or context-incomplete answers would inflate or deflate the reported metrics arbitrarily. DevPulse's Macro F1 = 0.966 and Recall@5 = 0.97 are grounded in an audited evaluation set.
 - **DocIngestQA:** GoldenSetAuditor and DocIngestQA are complementary: DocIngestQA audits the source documents before indexing, GoldenSetAuditor audits the evaluation set used to measure retrieval quality. Both must pass for the evaluation pipeline to be trustworthy.
 - **Any RAG system:** Before reporting retrieval benchmarks, run GoldenSetAuditor to confirm the evaluation set is free of contamination, coverage gaps, and answer ambiguity.
+
+---
+
+## Part of Applied LLM Systems Portfolio
+
+This project is part of a portfolio targeting Applied LLM Systems Engineer roles.
+
+- [**NexusSupply**](https://github.com/SidharthKriplani/nexussupply) — Supplier Risk Intelligence Platform (LangGraph + FinBERT + XGBoost + Instructor + NetworkX)
+- [**LendFlow**](https://github.com/SidharthKriplani/lendflow) — AI-powered loan underwriting pipeline (LangGraph + RAG + FOIR rules engine)
+- [**AgentReliabilityLab**](https://github.com/SidharthKriplani/agentreliabilitylab) — Cyber threat triage agent (LangGraph + hybrid RAG + HITL + RAGAS eval)
+- [**RiskFrame Platform**](https://github.com/SidharthKriplani/riskframe_platform) — ML model lifecycle (XGBoost + LightGBM champion/challenger, Optuna HPO, drift monitoring)
+- [**DevPulse Platform**](https://github.com/SidharthKriplani/devpulse_platform) — Version-safe RAG migration intelligence (LLM-Last principle, conflict detection)
+- [**PulseRank Platform**](https://github.com/SidharthKriplani/pulserank_platform) — Marketplace ranking with IPS debiasing (position bias correction, delayed attribution)
+- [**MetaSignal Platform**](https://github.com/SidharthKriplani/metasignal_platform) — Experimentation intelligence (CUPED + guardrail-first + A/A calibration)
